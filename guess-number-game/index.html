@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>猜数字 · 数字保险库</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Orbitron:wght@500;600;800;900&family=Space+Mono:wght@400;700&display=swap" />
+<style>
+/* ============================================================
+   Token
+   ============================================================ */
+:root{
+  --bg:#0A0F1E;
+  --bg-deep:#060A14;
+  --panel:#121B30;
+  --panel-2:#0D1526;
+  --line:#27324F;
+  --line-soft:#1B243C;
+  --ink:#EAE4D6;
+  --ink-dim:#8E97AD;
+  --ink-faint:#5A6478;
+  --amber:#F2A33C;
+  --amber-soft:#FFC877;
+  --amber-deep:#A85E12;
+  --teal:#3FD9A4;
+  --red:#E4573D;
+  --radius:16px;
+  --font-display:'Orbitron','Space Mono','Microsoft YaHei',sans-serif;
+  --font-mono:'Space Mono','Consolas','Courier New',monospace;
+  --font-body:'PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,-apple-system,sans-serif;
+}
+
+/* ============================================================
+   基础
+   ============================================================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--font-body);
+  color:var(--ink);
+  background:
+    radial-gradient(1100px 700px at 50% -10%, rgba(242,163,60,.10), transparent 60%),
+    radial-gradient(900px 600px at 85% 110%, rgba(63,217,164,.06), transparent 55%),
+    var(--bg);
+  min-height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px 16px;
+  overflow-x:hidden;
+}
+/* 网格纹理 */
+body::before{
+  content:"";
+  position:fixed;inset:0;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255,255,255,.022) 0 1px, transparent 1px 44px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.022) 0 1px, transparent 1px 44px);
+  pointer-events:none;
+}
+
+/* 背景刻度盘 */
+.bg-dial{
+  position:fixed;
+  width:min(92vmin,880px);
+  height:min(92vmin,880px);
+  left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  color:var(--amber);
+  opacity:.06;
+  pointer-events:none;
+  animation:dial-spin 160s linear infinite;
+}
+.bg-dial circle,.bg-dial line{stroke:currentColor;fill:none}
+@keyframes dial-spin{to{transform:translate(-50%,-50%) rotate(360deg)}}
+
+/* 舞台 */
+.stage{
+  position:relative;
+  width:100%;
+  max-width:600px;
+  z-index:1;
+}
+
+/* ============================================================
+   视图切换
+   ============================================================ */
+.view{display:none}
+.view.active{display:block}
+
+/* 面板 */
+.panel{
+  background:linear-gradient(180deg,#141E34 0%,#0D1628 100%);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  box-shadow:0 24px 70px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
+  padding:34px 34px 30px;
+  position:relative;
+  overflow:hidden;
+}
+.panel::before{ /* 顶部琥珀细线 */
+  content:"";
+  position:absolute;top:0;left:18px;right:18px;height:1px;
+  background:linear-gradient(90deg,transparent,var(--amber),transparent);
+  opacity:.55;
+}
+.panel::after{ /* 角落铆钉感 */
+  content:"";
+  position:absolute;inset:10px;
+  border:1px solid var(--line-soft);
+  border-radius:10px;
+  pointer-events:none;
+}
+
+/* ============================================================
+   通用组件
+   ============================================================ */
+.kicker{
+  font-family:var(--font-display);
+  font-size:11px;
+  letter-spacing:.42em;
+  color:var(--amber);
+  text-transform:uppercase;
+  text-align:center;
+}
+.kicker::before,.kicker::after{
+  content:"";display:inline-block;width:18px;height:1px;vertical-align:middle;
+  background:var(--line);margin:0 10px;
+}
+h1.title{
+  font-family:var(--font-display);
+  font-size:clamp(44px,9vw,64px);
+  font-weight:900;
+  letter-spacing:.06em;
+  text-align:center;
+  color:var(--ink);
+  margin:16px 0 6px;
+  text-shadow:0 0 34px rgba(242,163,60,.28);
+}
+.subtitle{
+  text-align:center;
+  color:var(--ink-dim);
+  font-size:14px;
+  letter-spacing:.08em;
+  margin-bottom:26px;
+}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:10px;
+  min-height:48px;
+  padding:0 30px;
+  border-radius:12px;
+  border:1px solid transparent;
+  font-family:var(--font-display);
+  font-size:14px;
+  font-weight:700;
+  letter-spacing:.14em;
+  cursor:pointer;
+  transition:transform .15s ease, box-shadow .15s ease, background .15s ease, border-color .15s ease;
+  user-select:none;
+}
+.btn:focus-visible{outline:2px solid var(--amber-soft);outline-offset:2px}
+.btn-primary{
+  background:linear-gradient(180deg,var(--amber-soft),var(--amber) 55%,var(--amber-deep));
+  color:#241303;
+  box-shadow:0 10px 28px rgba(242,163,60,.28), inset 0 1px 0 rgba(255,255,255,.35);
+}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 14px 34px rgba(242,163,60,.38), inset 0 1px 0 rgba(255,255,255,.35)}
+.btn-primary:active{transform:translateY(1px);box-shadow:0 6px 16px rgba(242,163,60,.25)}
+.btn-ghost{
+  background:transparent;
+  border-color:var(--line);
+  color:var(--ink-dim);
+  letter-spacing:.1em;
+}
+.btn-ghost:hover{border-color:var(--amber);color:var(--amber-soft)}
+.btn-row{display:flex;gap:12px;justify-content:center;margin-top:22px}
+
+.mono{font-family:var(--font-mono)}
+
+/* 规则列表 */
+.rules{
+  list-style:none;
+  display:grid;
+  gap:10px;
+  margin:0 0 24px;
+}
+.rules li{
+  display:flex;align-items:center;gap:14px;
+  background:var(--panel-2);
+  border:1px solid var(--line-soft);
+  border-radius:10px;
+  padding:12px 16px;
+  font-size:14px;
+  color:var(--ink-dim);
+}
+.rules li .idx{
+  font-family:var(--font-mono);
+  color:var(--amber);
+  font-size:12px;
+  flex:none;
+  width:22px;height:22px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+}
+.rules li strong{color:var(--ink);font-weight:600}
+
+/* ============================================================
+   游戏界面
+   ============================================================ */
+.game-top{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;
+  margin-bottom:22px;
+}
+.game-top .block{
+  background:var(--panel-2);
+  border:1px solid var(--line-soft);
+  border-radius:10px;
+  padding:8px 14px;
+  min-width:86px;
+}
+.game-top .label{
+  font-family:var(--font-display);
+  font-size:9px;letter-spacing:.28em;color:var(--ink-faint);
+  text-transform:uppercase;
+  display:block;margin-bottom:3px;
+}
+.game-top .value{
+  font-family:var(--font-mono);
+  font-size:18px;color:var(--ink);
+  font-variant-numeric:tabular-nums;
+}
+.game-top .value.amber{color:var(--amber-soft)}
+.exit-link{
+  background:none;border:none;color:var(--ink-faint);
+  font-size:12px;font-family:var(--font-mono);letter-spacing:.1em;
+  cursor:pointer;padding:10px 8px;
+}
+.exit-link:hover{color:var(--ink-dim)}
+
+/* 机会仪表（签名元素：五格数字牌） */
+.meter{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:10px;
+  margin-bottom:8px;
+  user-select:none;
+  touch-action:none;
+}
+.meter .cell{
+  position:relative;
+  aspect-ratio:1/1;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--panel-2);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-display);
+  font-size:clamp(18px,4.6vw,26px);
+  font-weight:800;
+  color:var(--ink-dim);
+  transition:border-color .25s, background .25s, color .25s, box-shadow .25s;
+  overflow:hidden;
+}
+.meter .cell.empty::before{
+  content:"";
+  position:absolute;
+  width:26px;height:2px;
+  background:var(--line);
+  border-radius:2px;
+  transition:background .25s;
+}
+.meter .cell.preview{color:var(--ink-faint)}
+.meter .cell.high{border-color:rgba(228,87,61,.65);color:var(--ink);background:rgba(228,87,61,.12)}
+.meter .cell.low{border-color:rgba(63,217,164,.6);color:var(--ink);background:rgba(63,217,164,.10)}
+.meter .cell.hit{
+  border-color:var(--amber);
+  color:#241303;
+  background:linear-gradient(180deg,var(--amber-soft),var(--amber));
+  box-shadow:0 0 22px rgba(242,163,60,.45);
+  animation:cell-hit .6s cubic-bezier(.2,1.4,.4,1);
+}
+.meter .cell.current{box-shadow:0 0 0 1px rgba(242,163,60,.35)}
+@keyframes cell-hit{
+  0%{transform:scale(.4)}
+  60%{transform:scale(1.12)}
+  100%{transform:scale(1)}
+}
+.meter .mark{
+  position:absolute;top:5px;right:7px;
+  font-family:var(--font-mono);
+  font-size:10px;font-weight:700;
+}
+.meter .mark.up{color:var(--red)}
+.meter .mark.down{color:var(--teal)}
+.meter-lbl{
+  text-align:center;
+  font-family:var(--font-display);
+  font-size:10px;letter-spacing:.34em;
+  color:var(--ink-faint);
+  text-transform:uppercase;
+  margin-bottom:18px;
+}
+.meter-lbl b{color:var(--amber-soft);font-weight:700}
+
+/* 输入区 */
+.guess-zone{
+  background:var(--panel-2);
+  border:1px solid var(--line-soft);
+  border-radius:12px;
+  padding:18px 16px 20px;
+  margin-bottom:14px;
+}
+.guess-input{
+  width:100%;
+  background:transparent;
+  border:none;
+  outline:none;
+  text-align:center;
+  font-family:var(--font-display);
+  font-weight:900;
+  font-size:clamp(52px,15vw,72px);
+  line-height:1.15;
+  color:var(--ink);
+  caret-color:var(--amber);
+  border-bottom:2px solid var(--line);
+  padding:0 0 10px;
+  transition:border-color .2s;
+}
+.guess-input:focus{border-bottom-color:var(--amber)}
+.guess-input::placeholder{color:var(--ink-faint);font-weight:600}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
+.guess-sub{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-top:12px;
+}
+.guess-sub .hint{
+  font-size:12px;color:var(--ink-faint);
+  font-family:var(--font-mono);letter-spacing:.06em;
+}
+.guess-sub .submit{
+  padding:0 22px;
+  font-size:13px;
+}
+
+/* 提示横幅 */
+.banner{
+  min-height:52px;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  border-radius:10px;
+  border:1px solid var(--line-soft);
+  background:var(--panel-2);
+  color:var(--ink-dim);
+  font-size:14px;
+  text-align:center;
+  padding:10px 14px;
+  transition:border-color .25s, background .25s, color .25s;
+}
+.banner .arrow{
+  font-family:var(--font-mono);font-weight:700;font-size:16px;line-height:1;
+}
+.banner.high{border-color:rgba(228,87,61,.5);color:var(--red);background:rgba(228,87,61,.09)}
+.banner.low{border-color:rgba(63,217,164,.5);color:var(--teal);background:rgba(63,217,164,.08)}
+.banner.warn{border-color:rgba(242,163,60,.45);color:var(--amber-soft);background:rgba(242,163,60,.07)}
+.banner.hit{
+  border-color:var(--amber);color:#241303;
+  background:linear-gradient(180deg,var(--amber-soft),var(--amber));
+  font-weight:600;
+}
+.banner.shake{animation:shake .4s}
+@keyframes shake{
+  0%,100%{transform:translateX(0)}
+  25%{transform:translateX(-7px)}
+  75%{transform:translateX(7px)}
+}
+
+/* ============================================================
+   结果界面
+   ============================================================ */
+.stars{display:flex;gap:8px;justify-content:center;margin-bottom:6px}
+.stars svg{width:30px;height:30px;transition:transform .3s}
+.stars svg.on{transform:scale(1.05)}
+.stars svg.off{opacity:.22;transform:scale(.92)}
+.result-title{
+  font-family:var(--font-display);
+  font-size:clamp(26px,6vw,36px);
+  font-weight:800;
+  text-align:center;
+  margin:14px 0 4px;
+  letter-spacing:.04em;
+}
+.result-title.win{color:var(--amber-soft);text-shadow:0 0 30px rgba(242,163,60,.35)}
+.result-title.lose{color:#E8A79A}
+.result-speech{
+  text-align:center;
+  color:var(--ink-dim);
+  font-size:15px;
+  line-height:1.75;
+  margin:0 auto 22px;
+  max-width:38ch;
+}
+.result-answer{
+  text-align:center;
+  font-family:var(--font-mono);
+  font-size:13px;
+  color:var(--red);
+  margin-bottom:18px;
+}
+.result-answer b{font-size:16px}
+.stats{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  margin-bottom:6px;
+}
+.stats .stat{
+  background:var(--panel-2);
+  border:1px solid var(--line-soft);
+  border-radius:10px;
+  padding:12px 8px;
+  text-align:center;
+}
+.stats .num{
+  font-family:var(--font-display);
+  font-size:24px;font-weight:800;
+  color:var(--ink);
+  font-variant-numeric:tabular-nums;
+}
+.stats .num.amber{color:var(--amber-soft)}
+.stats .lbl{
+  font-family:var(--font-display);
+  font-size:9px;letter-spacing:.26em;
+  color:var(--ink-faint);
+  text-transform:uppercase;
+  margin-top:4px;
+  display:block;
+}
+
+/* 弹入动画 */
+.pop-in{animation:pop-in .5s cubic-bezier(.2,1.3,.4,1) both}
+@keyframes pop-in{
+  from{opacity:0;transform:translateY(16px) scale(.97)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+
+/* ============================================================
+   动效 & 响应式
+   ============================================================ */
+.fade-up{animation:fade-up .7s cubic-bezier(.2,.8,.2,1) both}
+.fade-up.d1{animation-delay:.06s}
+.fade-up.d2{animation-delay:.14s}
+.fade-up.d3{animation-delay:.22s}
+.fade-up.d4{animation-delay:.3s}
+@keyframes fade-up{
+  from{opacity:0;transform:translateY(14px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@media (max-width:480px){
+  body{padding:14px 12px}
+  .panel{padding:26px 20px 24px}
+  .game-top .block{min-width:72px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  .bg-dial{animation:none}
+}
+</style>
+</head>
+<body>
+
+<svg class="bg-dial" viewBox="0 0 600 600" aria-hidden="true">
+  <g>
+    <circle cx="300" cy="300" r="286" stroke-dasharray="1 6" stroke-width="1"/>
+    <circle cx="300" cy="300" r="238" stroke-dasharray="16 24" stroke-width="2"/>
+    <circle cx="300" cy="300" r="178" stroke-dasharray="2 8" stroke-width="1"/>
+    <circle cx="300" cy="300" r="120" stroke-dasharray="70 32" stroke-width="2"/>
+    <circle cx="300" cy="300" r="64" stroke-dasharray="4 12" stroke-width="1"/>
+    <line x1="300" y1="22" x2="300" y2="70" stroke-width="3"/>
+    <line x1="300" y1="530" x2="300" y2="578" stroke-width="3"/>
+    <line x1="22" y1="300" x2="70" y2="300" stroke-width="3"/>
+    <line x1="530" y1="300" x2="578" y2="300" stroke-width="3"/>
+    <circle cx="300" cy="300" r="6" stroke-width="2"/>
+  </g>
+</svg>
+
+<div class="stage">
+
+  <!-- ===================== 视图：开始菜单 ===================== -->
+  <section id="view-menu" class="view active">
+    <div class="panel">
+      <p class="kicker fade-up">Number Vault</p>
+      <h1 class="title fade-up d1">猜数字</h1>
+      <p class="subtitle fade-up d1">保险库已上锁 · 1~100 之间藏着一个数字</p>
+
+      <ul class="rules fade-up d2">
+        <li><span class="idx">01</span><span><strong>范围</strong> —— 目标数字在 1~100 之间随机生成</span></li>
+        <li><span class="idx">02</span><span><strong>机会</strong> —— 你只有 <strong>5 次</strong> 猜测机会</span></li>
+        <li><span class="idx">03</span><span><strong>提示</strong> —— 每次猜测会告诉你目标“高了”还是“低了”</span></li>
+      </ul>
+
+      <div class="btn-row fade-up d3">
+        <button id="btn-start" class="btn btn-primary" type="button">开始解锁</button>
+      </div>
+
+      <p id="menu-best" class="fade-up d4" style="text-align:center;font-family:var(--font-mono);font-size:12px;color:var(--ink-faint);margin-top:20px;letter-spacing:.08em"></p>
+    </div>
+  </section>
+
+  <!-- ===================== 视图：游戏 ===================== -->
+  <section id="view-game" class="view">
+    <div class="panel">
+      <div class="game-top">
+        <div class="block">
+          <span class="label">机会</span>
+          <span id="lbl-remain" class="value amber">×5</span>
+        </div>
+        <div class="block">
+          <span class="label">用时</span>
+          <span id="lbl-timer" class="value">00:00</span>
+        </div>
+        <button id="btn-exit" class="exit-link" type="button">退出</button>
+      </div>
+
+      <div class="meter" id="meter">
+        <div class="cell empty" data-i="0"></div>
+        <div class="cell empty" data-i="1"></div>
+        <div class="cell empty" data-i="2"></div>
+        <div class="cell empty" data-i="3"></div>
+        <div class="cell empty" data-i="4"></div>
+      </div>
+      <p class="meter-lbl">剩余 <b id="lbl-meter-remain">5</b> 格 · 五格内命中即可开锁</p>
+
+      <div class="guess-zone">
+        <input id="guess-input" class="guess-input" type="number" inputmode="numeric"
+               min="1" max="100" placeholder="—" aria-label="输入你猜的数字" />
+        <div class="guess-sub">
+          <span class="hint">1 ~ 100</span>
+          <button id="btn-submit" class="btn btn-primary submit" type="button">提交猜测</button>
+        </div>
+      </div>
+
+      <div id="banner" class="banner">输入 1~100 之间的数字,开始你的第一猜</div>
+    </div>
+  </section>
+
+  <!-- ===================== 视图：结果 ===================== -->
+  <section id="view-result" class="view">
+    <div class="panel pop-in">
+      <div class="stars" id="stars" aria-hidden="true"></div>
+      <p id="result-rank" class="kicker" style="letter-spacing:.34em"></p>
+      <h2 id="result-title" class="result-title"></h2>
+      <p id="result-speech" class="result-speech"></p>
+      <p id="result-answer" class="result-answer"></p>
+
+      <div class="stats">
+        <div class="stat"><span id="stat-guesses" class="num amber"></span><span class="lbl">猜测次数</span></div>
+        <div class="stat"><span id="stat-time" class="num"></span><span class="lbl">用时</span></div>
+        <div class="stat"><span id="stat-best" class="num"></span><span class="lbl">最佳纪录</span></div>
+      </div>
+
+      <div class="btn-row">
+        <button id="btn-again" class="btn btn-primary" type="button">再来一局</button>
+        <button id="btn-menu" class="btn btn-ghost" type="button">返回菜单</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ===== DOM ===== */
+  var $ = function(id){ return document.getElementById(id); };
+  var meterCells = Array.prototype.slice.call(document.querySelectorAll('#meter .cell'));
+  var guessInput = $('guess-input');
+  var banner = $('banner');
+
+  /* ===== 状态 ===== */
+  var state = {
+    target: 0,
+    count: 0,
+    history: [],      // {v, diff: 'high'|'low'|'hit'}
+    startTs: 0,
+    timerId: null
+  };
+
+  var BEST_KEY = 'number-vault-best';
+
+  /* ===== 工具 ===== */
+  function rand(min, max){ return Math.floor(Math.random() * (max - min + 1)) + min; }
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
+  function fmtTime(ms){
+    var s = Math.floor(ms / 1000);
+    return pad(Math.floor(s / 60)) + ':' + pad(s % 60);
+  }
+  function showView(id){
+    $('view-menu').classList.toggle('active', id === 'view-menu');
+    $('view-game').classList.toggle('active', id === 'view-game');
+    $('view-result').classList.toggle('active', id === 'view-result');
+    window.scrollTo(0, 0);
+  }
+
+  /* ===== 最佳纪录 ===== */
+  function loadBest(){
+    try {
+      var raw = localStorage.getItem(BEST_KEY);
+      if(!raw) return null;
+      var b = JSON.parse(raw);
+      if(typeof b.g === 'number' && typeof b.s === 'number') return b;
+      return null;
+    } catch(e){ return null; }
+  }
+  function saveBest(b){
+    try { localStorage.setItem(BEST_KEY, JSON.stringify(b)); } catch(e){ /* 隐私模式忽略 */ }
+  }
+  function maybeUpdateBest(guesses, seconds){
+    var best = loadBest();
+    if(!best || guesses < best.g || (guesses === best.g && seconds < best.s)){
+      saveBest({g: guesses, s: seconds});
+      return true;
+    }
+    return false;
+  }
+  function renderBest(){
+    var best = loadBest();
+    $('menu-best').textContent = best ? 'BEST — ' + best.g + ' 次 · ' + fmtTime(best.s * 1000) : '尚无纪录 · 等你来破';
+  }
+
+  /* ===== 游戏主流程 ===== */
+  function startGame(){
+    state.target = rand(1, 100);
+    state.count = 0;
+    state.history = [];
+    state.startTs = Date.now();
+    if(state.timerId){ clearInterval(state.timerId); state.timerId = null; }
+
+    meterCells.forEach(function(c){ c.className = 'cell empty'; });
+    guessInput.value = '';
+    setBanner('normal', '输入 1~100 之间的数字,开始你的第一猜');
+    renderRemain();
+    renderTimer();
+    state.timerId = setInterval(renderTimer, 250);
+    showView('view-game');
+    setTimeout(function(){ guessInput.focus(); }, 60);
+  }
+
+  function renderTimer(){
+    $('lbl-timer').textContent = fmtTime(Date.now() - state.startTs);
+  }
+  function renderRemain(){
+    var left = 5 - state.count;
+    $('lbl-remain').textContent = '×' + left;
+    $('lbl-meter-remain').textContent = String(left);
+  }
+
+  function setBanner(kind, text, arrow){
+    banner.className = 'banner' + (kind && kind !== 'normal' ? ' ' + kind : '');
+    banner.innerHTML = '';
+    if(arrow){
+      var a = document.createElement('span');
+      a.className = 'arrow';
+      a.textContent = arrow;
+      banner.appendChild(a);
+    }
+    var t = document.createElement('span');
+    t.textContent = text;
+    banner.appendChild(t);
+  }
+
+  /* 渲染仪表：已提交的猜测 + 当前输入预览 */
+  function renderMeter(){
+    for(var i = 0; i < 5; i++){
+      var cell = meterCells[i];
+      cell.innerHTML = '';
+      cell.classList.remove('high','low','hit','preview','current','empty');
+      if(i < state.history.length){
+        var h = state.history[i];
+        var num = document.createElement('span');
+        num.textContent = String(h.v);
+        cell.appendChild(num);
+        if(h.diff === 'hit'){
+          cell.classList.add('hit');
+        } else {
+          cell.classList.add(h.diff);
+          var m = document.createElement('span');
+          m.className = 'mark ' + (h.diff === 'high' ? 'up' : 'down');
+          m.textContent = h.diff === 'high' ? '▲' : '▼';
+          cell.appendChild(m);
+        }
+      } else if(i === state.history.length){
+        cell.classList.add('current');
+        var v = parseInt(guessInput.value, 10);
+        if(Number.isInteger(v) && v >= 1 && v <= 100){
+          cell.classList.add('preview');
+          cell.textContent = String(v);
+        } else {
+          cell.classList.add('empty');
+        }
+      } else {
+        cell.classList.add('empty');
+      }
+    }
+  }
+
+  function submitGuess(){
+    if(state.count >= 5) return;
+    var raw = guessInput.value.trim();
+    var v = parseInt(raw, 10);
+    if(!Number.isInteger(v) || v < 1 || v > 100){
+      setBanner('warn', '请输入 1~100 之间的整数');
+      banner.classList.remove('shake');
+      void banner.offsetWidth; /* 重启动画 */
+      banner.classList.add('shake');
+      guessInput.select();
+      return;
+    }
+
+    state.count++;
+    var diff = v > state.target ? 'high' : (v < state.target ? 'low' : 'hit');
+    state.history.push({v: v, diff: diff});
+    renderMeter();
+    renderRemain();
+
+    if(diff === 'hit'){
+      clearInterval(state.timerId); state.timerId = null;
+      setBanner('hit', '开锁成功!');
+      endGame(true);
+      return;
+    }
+
+    var left = 5 - state.count;
+    if(diff === 'high'){
+      setBanner('high', '猜大了,还剩 ' + left + ' 次机会', '▲');
+    } else {
+      setBanner('low', '猜小了,还剩 ' + left + ' 次机会', '▼');
+    }
+
+    if(left === 0){
+      clearInterval(state.timerId); state.timerId = null;
+      endGame(false);
+      return;
+    }
+    guessInput.value = '';
+    guessInput.focus();
+  }
+
+  /* ===== 结束 ===== */
+  var WIN_TEXT = {
+    1: ['读心术大师', '一发入魂。你和那个数字之间,隔的不是概率,是默契。'],
+    2: ['解码特工',   '两轮收工,稳准狠。这份直觉够格进任何情报机构。'],
+    3: ['稳准猎手',   '三回合拿下,效率在线。大多数人做不到,你做到了。'],
+    4: ['渐入佳境者', '四轮锁定,过程曲折但结局圆满。高手,只是慢热。'],
+    5: ['压哨绝杀手', '压哨命中,惊险过关。虽然磨了五轮,最后一下很漂亮。']
+  };
+  var LOSE_TEXT = [
+    '五次机会,五道刻痕,零命中。你的直觉和它之间,隔着一整个保险库。',
+    '五连败达成。正确答案就静静躺在保险库里,看着你与它反复擦肩。',
+    '五次全空。建议下次开猜前,先把正确数字从备选里排除。'
+  ];
+
+  function endGame(win){
+    var seconds = Math.round((Date.now() - state.startTs) / 1000);
+    var isNewBest = false;
+
+    if(win){
+      isNewBest = maybeUpdateBest(state.count, seconds);
+    }
+
+    /* 星星 */
+    var stars = $('stars');
+    stars.innerHTML = '';
+    var onCount = win ? Math.max(1, 6 - state.count) : 0;
+    for(var i = 0; i < 5; i++){
+      var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      s.setAttribute('viewBox','0 0 24 24');
+      s.innerHTML = '<path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.4l6.5-.9z"/>';
+      s.classList.add(i < onCount ? 'on' : 'off');
+      s.style.fill = i < onCount ? 'var(--amber)' : 'var(--ink-dim)';
+      stars.appendChild(s);
+    }
+
+    $('result-title').className = 'result-title ' + (win ? 'win' : 'lose');
+    $('stat-guesses').textContent = win ? String(state.count) : '5 次';
+    $('stat-time').textContent = fmtTime(seconds * 1000);
+
+    var best = loadBest();
+    $('stat-best').textContent = best ? best.g + ' 次' : '—';
+    $('result-answer').innerHTML = '';
+
+    if(win){
+      var w = WIN_TEXT[state.count];
+      $('result-rank').textContent = w[0];
+      $('result-title').textContent = '开锁成功';
+      $('result-speech').textContent = w[1] + (isNewBest ? ' 新纪录!' : '');
+      if(isNewBest){
+        var nb = document.createElement('b');
+        nb.style.cssText = 'color:var(--amber-soft);display:block;margin-top:6px;letter-spacing:.14em';
+        nb.textContent = 'NEW — 新最佳纪录';
+        $('result-speech').appendChild(nb);
+      }
+    } else {
+      $('result-rank').textContent = '电波接收失败';
+      $('result-title').textContent = '保险库纹丝不动';
+      var idx = Math.floor(Math.random() * LOSE_TEXT.length);
+      $('result-speech').textContent = LOSE_TEXT[idx];
+      var ans = document.createElement('span');
+      ans.innerHTML = '正确答案是 <b>' + state.target + '</b>';
+      $('result-answer').appendChild(ans);
+    }
+
+    renderBest();
+    showView('view-result');
+    window.scrollTo(0, 0);
+  }
+
+  /* ===== 事件 ===== */
+  $('btn-start').addEventListener('click', startGame);
+  $('btn-again').addEventListener('click', startGame);
+  $('btn-exit').addEventListener('click', function(){
+    if(state.timerId){ clearInterval(state.timerId); state.timerId = null; }
+    renderBest();
+    showView('view-menu');
+  });
+  $('btn-menu').addEventListener('click', function(){
+    renderBest();
+    showView('view-menu');
+  });
+  $('btn-submit').addEventListener('click', submitGuess);
+  guessInput.addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      submitGuess();
+    }
+  });
+  guessInput.addEventListener('input', renderMeter);
+
+  /* 启动 */
+  renderBest();
+  showView('view-menu');
+})();
+</script>
+</body>
+</html>
